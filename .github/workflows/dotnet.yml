@@ -35,16 +35,11 @@ jobs:
         name: release-artifact
         path: release.zip
 
-    - name: Create Tag
-      run: |
-        git config user.name "mysttic"
-        git config user.email "mysttic@github.com"
-        git tag v${{ github.run_number }}
-        git push origin v${{ github.run_number }}
-
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: v${{ github.run_number }}
         files: release.zip
+        token: ${{ secrets.GITHUB_TOKEN }}
+
 
