@@ -70,6 +70,12 @@ Example response (for invalid JSON):
 The `IsValidJson` method verifies if the request body is valid JSON by attempting to parse the string. 
 If the string cannot be parsed, the API will return a `400 Bad Request` status with an error message.
 
+## Get Release
+You can get latest release and run it without launching solution file: ![GitHub release (latest by date)](https://img.shields.io/github/v/release/Mysttic/TargetApiSimulator)
+![image](https://github.com/user-attachments/assets/efcf563a-22b0-4b7d-9766-a5c85380d8bd)
+
+Once the solution files are downloaded, you can run it in the console. Any messages you receive will be displayed there.
+
 ## Docker
 
 You can containerize the **TargetApiSimulator** using the provided [Dockerfile](https://hub.docker.com/r/mysttic/targetapisimulator). 
