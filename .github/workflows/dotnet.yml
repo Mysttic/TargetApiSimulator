@@ -5,9 +5,9 @@ name: .NET
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "Mysttic-actions" ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ "Mysttic-actions" ]
 
 jobs:
   build:
