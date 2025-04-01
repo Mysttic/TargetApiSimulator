@@ -2,7 +2,7 @@ name: Build and Release .NET App
 
 on:
   push:
-    branches: ["Mysttic-actions"]
+    branches: ["master"]
 
 jobs:
   build-and-release:
