@@ -48,9 +48,9 @@ No tag is ever created by hand. [VERSION.md](./VERSION.md) drives everything.
    run summary whether merging will publish, and under which number.
 3. Merge with a **merge commit** (not squash — `master` keeps real merge commits).
 4. `release.yml` runs on that push to `master`. It reads `VERSION.md`, confirms `vX.Y.Z` does not
-   already exist, builds and tests, publishes zips for `win-x64`, `linux-x64` and `osx-arm64`
-   with `.sha256` files, **creates the tag**, publishes the GitHub Release, and pushes images
-   tagged `X.Y.Z`, `X.Y` and `latest` to GHCR and Docker Hub.
+   already exist, builds and tests, produces one portable zip with a `.sha256` file, **creates
+   the tag**, publishes the GitHub Release, and pushes images tagged `X.Y.Z`, `X.Y` and `latest`
+   to GHCR and Docker Hub.
 5. Back-merge so develop does not fall behind:
 
    ```bash
@@ -69,6 +69,22 @@ A tag pushed using the default `GITHUB_TOKEN` does not trigger further workflow 
 blocks that to prevent recursion. A design where one workflow pushes the tag and another listens
 for it would create the tag and then silently do nothing, unless a personal access token were
 introduced. Doing the tagging and the publishing in a single run avoids needing one.
+
+### No executable is shipped
+
+Release artifacts contain the managed assembly only — `-p:UseAppHost=false`. A freshly built,
+unsigned `.exe` with no download reputation is routinely flagged by antivirus machine-learning
+heuristics; Microsoft Defender reported the v1.0.0 Windows zip as `Trojan:Script/Wacatac.B!ml`,
+a heuristic verdict, and quarantined it mid-download.
+
+Dropping the launcher also removes the reason for per-platform zips: a framework-dependent
+publish without an apphost produces the same file set for every RID, so there is now one
+portable zip instead of three.
+
+Signing would be the other way to solve this. SignPath Foundation offers it free for open
+source, but it requires an application and approval, and the signature is issued in the
+foundation's name rather than the project's. Everything this project publishes stays on
+GitHub — no external package registry or account is involved.
 
 ### Dry run
 

@@ -121,10 +121,6 @@ jobs:
     if: needs.version.outputs.proceed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    strategy:
-      fail-fast: true
-      matrix:
-        rid: [linux-x64, win-x64, osx-arm64]
     steps:
       - uses: actions/checkout@v7
 
@@ -132,37 +128,42 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Publish ${{ matrix.rid }}
+      # One portable package, and deliberately no apphost. Without the native launcher a
+      # per-RID publish produces the same file set anyway, and a freshly built unsigned .exe
+      # with no download reputation gets flagged as Trojan:Script/Wacatac.B!ml.
+      - name: Publish
         shell: bash
         env:
           VERSION: ${{ needs.version.outputs.version }}
-          RID: ${{ matrix.rid }}
         run: |
           set -euo pipefail
           dotnet publish src/TargetApiSimulator/TargetApiSimulator.csproj \
             --configuration Release \
-            --runtime "$RID" \
-            --self-contained false \
+            -p:UseAppHost=false \
             -p:DebugType=embedded \
             -p:Version="$VERSION" \
             -p:InformationalVersion="$VERSION+$GITHUB_SHA" \
-            --output "out/$RID"
+            --output out/portable
+
+          if ls out/portable | grep -qiE '\.exe$'; then
+            echo "An .exe ended up in the package; UseAppHost=false is not taking effect." >&2
+            exit 1
+          fi
 
       - name: Package
         shell: bash
         env:
           VERSION: ${{ needs.version.outputs.version }}
-          RID: ${{ matrix.rid }}
         run: |
           set -euo pipefail
-          NAME="TargetApiSimulator-$VERSION-$RID"
+          NAME="TargetApiSimulator-$VERSION"
           mkdir -p dist
-          ( cd "out/$RID" && zip -r "$GITHUB_WORKSPACE/dist/$NAME.zip" . )
+          ( cd out/portable && zip -r "$GITHUB_WORKSPACE/dist/$NAME.zip" . )
           ( cd dist && sha256sum "$NAME.zip" > "$NAME.zip.sha256" )
 
       - uses: actions/upload-artifact@v7
         with:
-          name: package-${{ matrix.rid }}
+          name: package
           path: dist/*
           retention-days: 14
           if-no-files-found: error
@@ -178,8 +179,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          pattern: package-*
-          merge-multiple: true
+          name: package
           path: dist
 
       # Creates the tag at this commit as part of publishing, so VERSION.md stays the only
