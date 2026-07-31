@@ -1,0 +1,156 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, master]
+  push:
+    branches: [develop]
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  # Forces English CLI output. `dotnet list package --vulnerable` is localised, and the
+  # grep below would silently never match on a runner with a different locale.
+  DOTNET_CLI_UI_LANGUAGE: en-US
+
+jobs:
+  build-test:
+    name: build-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      # Fails here rather than halfway through a release: VERSION.md is what the release
+      # pipeline reads, and a typo in it is only discoverable after the merge otherwise.
+      - name: Validate VERSION.md
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(tr -d '\r' < VERSION.md \
+            | grep -oEm1 '^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' \
+            | head -1 | sed 's/^v//') || true
+
+          if [[ -z "${VERSION:-}" ]]; then
+            echo "VERSION.md has no version on a line of its own. Expected e.g. 1.2.3" >&2
+            exit 1
+          fi
+
+          if git ls-remote --exit-code --tags origin "refs/tags/v${VERSION}" >/dev/null 2>&1; then
+            EXISTS=true
+          else
+            EXISTS=false
+          fi
+
+          {
+            echo "### Version"
+            echo ""
+            echo "VERSION.md declares \`${VERSION}\`; tag \`v${VERSION}\` exists: \`${EXISTS}\`."
+            echo ""
+            if [[ "$EXISTS" == "true" ]]; then
+              echo "Merging this into master will **not** publish a release."
+              echo "Bump VERSION.md if it should."
+            else
+              echo "Merging this into master will publish **v${VERSION}**."
+            fi
+            if ! grep -qF "[${VERSION}]" CHANGELOG.md 2>/dev/null; then
+              echo ""
+              echo "CHANGELOG.md has no \`[${VERSION}]\` section yet."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Test
+        run: >
+          dotnet test --configuration Release --no-build
+          --logger "trx;LogFileName=test-results.trx"
+          --results-directory ./TestResults
+
+      - name: Verify formatting
+        run: dotnet format TargetApiSimulator.sln --verify-no-changes --no-restore --severity warn
+
+      - name: Vulnerable packages
+        run: |
+          set -uo pipefail
+          dotnet list package --vulnerable --include-transitive 2>&1 | tee vuln.txt
+          if grep -q "has the following vulnerable packages" vuln.txt; then
+            echo "Vulnerable packages found." >&2
+            exit 1
+          fi
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results
+          path: TestResults/**
+          retention-days: 7
+
+  docker:
+    name: docker
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build image
+        run: docker build -t tas:ci .
+
+      - name: Smoke test
+        run: |
+          set -euo pipefail
+          docker run -d --rm --name tas -p 5000:8080 tas:ci
+          for _ in $(seq 1 30); do
+            if curl -sf -X POST http://localhost:5000/api/target \
+                 -H 'Content-Type: application/json' -d '{"a":1}' >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+
+          BODY=$(curl -s -X POST http://localhost:5000/api/target \
+                   -H 'Content-Type: application/json' -d '{"a":1}')
+          test "$BODY" = "true"
+
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:5000/api/target \
+                   -H 'Content-Type: application/json' -d 'nope')
+          test "$CODE" = "400"
+
+          # The 1 MB request body limit. TestServer does not enforce MaxRequestBodySize, so this
+          # is the only place the limit can be verified end to end.
+          python3 -c "open('big.json','w').write('{\"a\":\"' + 'x' * 1100000 + '\"}')"
+          CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:5000/api/target \
+                   -H 'Content-Type: application/json' --data-binary @big.json)
+          test "$CODE" = "413"
+
+          docker logs tas
+          docker rm -f tas
+
+  ci-required:
+    name: ci-required
+    if: always()
+    needs: [build-test, docker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fail if any required job did not succeed
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped') }}
+        run: |
+          echo "One or more CI jobs failed." >&2
+          exit 1

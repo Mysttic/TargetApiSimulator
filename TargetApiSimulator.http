@@ -1,0 +1,77 @@
+@host = http://localhost:5274
+# Kontener: docker run --rm -p 5000:8080 mysttic/targetapisimulator
+# @host = http://localhost:5000
+
+### Poprawny obiekt JSON -> 200 "true"
+POST {{host}}/api/target
+Content-Type: application/json
+
+{
+  "key": "value"
+}
+
+### Poprawna tablica -> 200 "true"
+POST {{host}}/api/target
+Content-Type: application/json
+
+[1, 2, 3]
+
+### Bare scalar tez jest poprawnym dokumentem JSON (RFC 8259) -> 200 "true"
+POST {{host}}/api/target
+Content-Type: application/json
+
+123
+
+### Niepoprawny JSON -> 400
+POST {{host}}/api/target
+Content-Type: application/json
+
+This is not JSON
+
+### Trailing comma -> 400
+POST {{host}}/api/target
+Content-Type: application/json
+
+{"key": "value",}
+
+### Puste body -> 400
+POST {{host}}/api/target
+Content-Type: application/json
+
+### Content-Type jest ignorowany -> 200 "true"
+POST {{host}}/api/target
+Content-Type: text/plain
+
+{"key": "value"}
+
+### Health
+GET {{host}}/healthz
+
+### Wersja
+GET {{host}}/version
+
+###############################################################################
+# Ponizsze wymagaja Simulator:EnableControlHeaders = true (domyslnie wylaczone)
+###############################################################################
+
+### Wymuszony 503 -> odpowiedz z pustym body + X-Sim-Applied: status=503
+POST {{host}}/api/target
+Content-Type: application/json
+X-Sim-Status: 503
+
+{"key": "value"}
+
+### Opoznienie 2.5 s -> 200 "true" + X-Sim-Applied: delay=2500
+POST {{host}}/api/target
+Content-Type: application/json
+X-Sim-Delay-Ms: 2500
+
+{"key": "value"}
+
+### Oba naraz: najpierw opoznienie, potem wymuszony status
+POST {{host}}/api/target
+Content-Type: application/json
+X-Sim-Delay-Ms: 1000
+X-Sim-Status: 429
+
+{"key": "value"}

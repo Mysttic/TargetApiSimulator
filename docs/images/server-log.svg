@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="932" height="382" viewBox="0 0 932 382" role="img" aria-label="docker logs targetapisimulator">
+<rect x="0" y="0" width="932" height="382" rx="10" fill="#0d1117" stroke="#30363d"/>
+<path d="M0 10 a10 10 0 0 1 10 -10 h912 a10 10 0 0 1 10 10 v22 h-932 z" fill="#161b22"/>
+<line x1="0" y1="32" x2="932" y2="32" stroke="#30363d"/>
+<circle cx="18" cy="16" r="5" fill="#ff5f56"/>
+<circle cx="36" cy="16" r="5" fill="#ffbd2e"/>
+<circle cx="54" cy="16" r="5" fill="#27c93f"/>
+<text x="74" y="21" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12" fill="#8b949e">docker logs targetapisimulator</text>
+<text x="18" y="46" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" xml:space="preserve"><tspan fill="#8b949e">2026-07-31 10:40:14.317 </tspan><tspan fill="#58a6ff">info: TargetApiSimulator[0]</tspan></text>
+<text x="18" y="66" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" xml:space="preserve"><tspan fill="#c9d1d9">      X-Sim-* control headers are enabled (max delay 60000 ms).</tspan></text>
+<text x="18" y="86" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" xml:space="preserve"><tspan fill="#8b949e">2026-07-31 10:40:14.358 </tspan><tspan fill="#58a6ff">info: Microsoft.Hosting.Lifetime[14]</tspan></text>
+<text x="18" y="106" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" xml:space="preserve"><tspan fill="#c9d1d9">      Now listening on: http://[::]:8080</tspan></text>
+<text x="18" y="126" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" xml:space="preserve"><tspan fill="#8b949e">2026-07-31 10:40:14.358 </tspan><tspan fill="#58a6ff">info: Microsoft.Hosting.Lifetime[0]</tspan></text>
+<text x="18" y="146" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" xml:space="preserve"><tspan fill="#c9d1d9">      Application started. Press Ctrl+C to shut down.</tspan></text>
+<text x="18" y="166" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" xml:space="preserve"><tspan fill="#8b949e">2026-07-31 10:40:14.358 </tspan><tspan fill="#58a6ff">info: Microsoft.Hosting.Lifetime[0]</tspan></text>
+<text x="18" y="186" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" xml:space="preserve"><tspan fill="#c9d1d9">      Hosting environment: Production</tspan></text>
+<text x="18" y="206" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" xml:space="preserve"><tspan fill="#8b949e">2026-07-31 10:40:14.358 </tspan><tspan fill="#58a6ff">info: Microsoft.Hosting.Lifetime[0]</tspan></text>
+<text x="18" y="226" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" xml:space="preserve"><tspan fill="#c9d1d9">      Content root path: /app</tspan></text>
+<text x="18" y="246" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" xml:space="preserve"><tspan fill="#8b949e">2026-07-31 10:40:15.515 </tspan><tspan fill="#58a6ff">info: TargetApiSimulator[0]</tspan></text>
+<text x="18" y="266" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" xml:space="preserve"><tspan fill="#c9d1d9">      Request received: 32 bytes, valid=True, body={"orderId":42,"customer":"ACME"}</tspan></text>
+<text x="18" y="286" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" xml:space="preserve"><tspan fill="#8b949e">2026-07-31 10:40:15.557 </tspan><tspan fill="#58a6ff">info: TargetApiSimulator[0]</tspan></text>
+<text x="18" y="306" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" xml:space="preserve"><tspan fill="#c9d1d9">      Request received: 15 bytes, valid=False, body=not json at all</tspan></text>
+<text x="18" y="326" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" xml:space="preserve"><tspan fill="#8b949e">2026-07-31 10:40:17.227 </tspan><tspan fill="#d29922">warn: TargetApiSimulator[0]</tspan></text>
+<text x="18" y="346" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" xml:space="preserve"><tspan fill="#c9d1d9">      Request rejected at transport level: Request body too large. The max request body size is 1048576 bytes.</tspan></text>
+</svg>

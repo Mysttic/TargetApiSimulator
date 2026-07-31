@@ -1,0 +1,237 @@
+name: Release
+
+# Driven by VERSION.md, not by a hand-pushed tag. A merge into master that changes the version
+# publishes it; a merge that does not leaves the existing tag alone and stops early.
+#
+# The tag is created inside the release job rather than in a separate workflow on purpose: a tag
+# pushed with GITHUB_TOKEN does not trigger further workflow runs, so splitting this in two would
+# create the tag and then silently do nothing.
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_CLI_UI_LANGUAGE: en-US
+  IMAGE_GHCR: ghcr.io/mysttic/targetapisimulator
+  IMAGE_DOCKERHUB: docker.io/mysttic/targetapisimulator
+
+jobs:
+  version:
+    name: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      should_release: ${{ steps.v.outputs.should_release }}
+      proceed: ${{ steps.v.outputs.proceed }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Read VERSION.md
+        id: v
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f VERSION.md ]]; then
+            echo "VERSION.md is missing." >&2
+            exit 1
+          fi
+
+          # The version must be alone on its own line. Prose in the file cannot match.
+          VERSION=$(tr -d '\r' < VERSION.md \
+            | grep -oEm1 '^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$' \
+            | head -1 | sed 's/^v//') || true
+
+          if [[ -z "${VERSION:-}" ]]; then
+            echo "No version found in VERSION.md. Expected a line such as: 1.2.3" >&2
+            exit 1
+          fi
+
+          if git ls-remote --exit-code --tags origin "refs/tags/v${VERSION}" >/dev/null 2>&1; then
+            EXISTS=true
+          else
+            EXISTS=false
+          fi
+
+          if [[ "${{ github.event_name }}" == "push" && "$EXISTS" == "false" ]]; then
+            SHOULD_RELEASE=true
+          else
+            SHOULD_RELEASE=false
+          fi
+
+          if [[ "$SHOULD_RELEASE" == "true" || "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            PROCEED=true
+          else
+            PROCEED=false
+          fi
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "should_release=${SHOULD_RELEASE}" >> "$GITHUB_OUTPUT"
+          echo "proceed=${PROCEED}" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Release check"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| VERSION.md | \`${VERSION}\` |"
+            echo "| Tag \`v${VERSION}\` already exists | \`${EXISTS}\` |"
+            echo "| Will publish | \`${SHOULD_RELEASE}\` |"
+            echo ""
+            if [[ "$EXISTS" == "true" && "${{ github.event_name }}" == "push" ]]; then
+              echo "Nothing to do: bump the version in VERSION.md to publish a new release."
+            fi
+            if ! grep -qF "[${VERSION}]" CHANGELOG.md 2>/dev/null; then
+              echo "> CHANGELOG.md has no \`[${VERSION}]\` section. The release notes will be"
+              echo "> generated from commits only."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  verify:
+    name: verify
+    needs: version
+    if: needs.version.outputs.proceed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - run: dotnet restore
+      - run: dotnet build --configuration Release --no-restore
+      - run: dotnet test --configuration Release --no-build
+
+  publish:
+    name: publish
+    needs: [version, verify]
+    if: needs.version.outputs.proceed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: true
+      matrix:
+        rid: [linux-x64, win-x64, osx-arm64]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish ${{ matrix.rid }}
+        shell: bash
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          RID: ${{ matrix.rid }}
+        run: |
+          set -euo pipefail
+          dotnet publish src/TargetApiSimulator/TargetApiSimulator.csproj \
+            --configuration Release \
+            --runtime "$RID" \
+            --self-contained false \
+            -p:DebugType=embedded \
+            -p:Version="$VERSION" \
+            -p:InformationalVersion="$VERSION+$GITHUB_SHA" \
+            --output "out/$RID"
+
+      - name: Package
+        shell: bash
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          RID: ${{ matrix.rid }}
+        run: |
+          set -euo pipefail
+          NAME="TargetApiSimulator-$VERSION-$RID"
+          mkdir -p dist
+          ( cd "out/$RID" && zip -r "$GITHUB_WORKSPACE/dist/$NAME.zip" . )
+          ( cd dist && sha256sum "$NAME.zip" > "$NAME.zip.sha256" )
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: package-${{ matrix.rid }}
+          path: dist/*
+          retention-days: 14
+          if-no-files-found: error
+
+  release:
+    name: release
+    needs: [version, publish]
+    if: needs.version.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: package-*
+          merge-multiple: true
+          path: dist
+
+      # Creates the tag at this commit as part of publishing, so VERSION.md stays the only
+      # place a version is ever typed.
+      - name: Tag and publish the release
+        uses: softprops/action-gh-release@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: v${{ needs.version.outputs.version }}
+          name: v${{ needs.version.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(needs.version.outputs.version, '-') }}
+          fail_on_unmatched_files: true
+          files: |
+            dist/*.zip
+            dist/*.sha256
+
+  docker:
+    name: docker
+    needs: [version, verify]
+    if: needs.version.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Log in to Docker Hub
+        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login docker.io -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+      - name: Build and push
+        shell: bash
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          MAJOR_MINOR="${VERSION%.*}"
+          docker build \
+            --build-arg VERSION="$VERSION" \
+            -t "$IMAGE_GHCR:$VERSION" \
+            -t "$IMAGE_GHCR:$MAJOR_MINOR" \
+            -t "$IMAGE_GHCR:latest" \
+            -t "$IMAGE_DOCKERHUB:$VERSION" \
+            -t "$IMAGE_DOCKERHUB:$MAJOR_MINOR" \
+            -t "$IMAGE_DOCKERHUB:latest" \
+            .
+          docker push --all-tags "$IMAGE_GHCR"
+          docker push --all-tags "$IMAGE_DOCKERHUB"
