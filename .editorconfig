@@ -2,10 +2,13 @@ root = true
 
 [*]
 charset = utf-8
-end_of_line = crlf
 insert_final_newline = true
 trim_trailing_whitespace = true
 indent_style = space
+
+# end_of_line is deliberately not set. .gitattributes uses `* text=auto`, so the working tree is
+# CRLF on Windows and LF on Linux; pinning either one makes `dotnet format --verify-no-changes`
+# fail on the other platform. Git already normalises line endings on commit.
 
 [*.cs]
 indent_size = 4
