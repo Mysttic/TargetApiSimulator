@@ -10,6 +10,30 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-07-31
+
+### Added
+
+- `smoke-test.ps1` and `smoke-test.sh` ship inside every release zip. Start the simulator, run
+  one of them, and it exercises the whole documented contract — 25 checks — printing PASS or
+  FAIL for each and exiting non-zero if anything is wrong, so it doubles as a CI gate. Exits
+  with 2, and says so, when the simulator is not reachable.
+- README: a browser recipe. `/healthz` and `/version` open directly; for the POST endpoint,
+  open `/healthz` first and use `fetch` from the console — being on the simulator's own origin
+  is what avoids CORS, since no CORS policy is configured.
+
+### Changed
+
+- The container smoke test in CI now runs `scripts/smoke-test.sh` instead of a handful of inline
+  curl calls, so the script that ships to users is exercised on every pull request and cannot
+  rot unnoticed.
+
+### Fixed
+
+- `/version` reported the commit sha twice — `1.0.3+<sha>.<sha>` — because the release pipeline
+  appends it to `InformationalVersion` and the SDK appended it again.
+  `IncludeSourceRevisionInInformationalVersion` is now off.
+
 ## [1.0.3] - 2026-07-31
 
 ### Changed
@@ -138,7 +162,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Every pull request runs `dotnet list package --vulnerable --include-transitive` and fails on a
   hit. CLI output is forced to English so the check cannot silently pass on a localised runner.
 
-[Unreleased]: https://github.com/Mysttic/TargetApiSimulator/compare/v1.0.3...HEAD
+[Unreleased]: https://github.com/Mysttic/TargetApiSimulator/compare/v1.0.4...HEAD
+[1.0.4]: https://github.com/Mysttic/TargetApiSimulator/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/Mysttic/TargetApiSimulator/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/Mysttic/TargetApiSimulator/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/Mysttic/TargetApiSimulator/compare/v1.0.0...v1.0.1

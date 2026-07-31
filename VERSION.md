@@ -1,6 +1,6 @@
 # Version
 
-1.0.3
+1.0.4
 
 <!--
   This file is the single source of truth for the released version.

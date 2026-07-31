@@ -8,6 +8,9 @@
     <!-- No culture-sensitive formatting or comparison anywhere in this service; skipping ICU
          initialisation saves startup time and a few MB of RSS. -->
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- The release pipeline already appends the commit sha to InformationalVersion. Without
+         this the SDK appends it a second time and /version reports "1.0.3+sha.sha". -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
 </Project>
