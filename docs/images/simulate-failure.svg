@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="745" height="282" viewBox="0 0 745 282" role="img" aria-label="curl - injecting a slow 503">
+<rect x="0" y="0" width="745" height="282" rx="10" fill="#0d1117" stroke="#30363d"/>
+<path d="M0 10 a10 10 0 0 1 10 -10 h725 a10 10 0 0 1 10 10 v22 h-745 z" fill="#161b22"/>
+<line x1="0" y1="32" x2="745" y2="32" stroke="#30363d"/>
+<circle cx="18" cy="16" r="5" fill="#ff5f56"/>
+<circle cx="36" cy="16" r="5" fill="#ffbd2e"/>
+<circle cx="54" cy="16" r="5" fill="#27c93f"/>
+<text x="74" y="21" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="12" fill="#8b949e">curl - injecting a slow 503</text>
+<text x="18" y="46" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" xml:space="preserve"><tspan fill="#7ee787">$ curl -i -w "\n(elapsed: %{time_total}s)\n" -X POST http://localhost:5274/api/target \</tspan></text>
+<text x="18" y="66" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" xml:space="preserve"><tspan fill="#7ee787">    -H "X-Sim-Delay-Ms: 1500" -H "X-Sim-Status: 503" \</tspan></text>
+<text x="18" y="86" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" xml:space="preserve"><tspan fill="#7ee787">    -H "Content-Type: application/json" -d '{"key":"value"}'</tspan></text>
+<text x="18" y="106" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" xml:space="preserve"><tspan fill="#ff7b72">HTTP/1.1 503 Service Unavailable</tspan></text>
+<text x="18" y="126" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" xml:space="preserve"><tspan fill="#8b949e">Content-Length: 0</tspan></text>
+<text x="18" y="146" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" xml:space="preserve"><tspan fill="#8b949e">Date: Fri, 31 Jul 2026 10:39:01 GMT</tspan></text>
+<text x="18" y="166" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" xml:space="preserve"><tspan fill="#8b949e">Server: Kestrel</tspan></text>
+<text x="18" y="186" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" xml:space="preserve"><tspan fill="#8b949e">X-Sim-Applied: delay=1500,status=503</tspan></text>
+<text x="18" y="246" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="13" xml:space="preserve"><tspan fill="#d29922">(elapsed: 1.506370s)</tspan></text>
+</svg>
