@@ -182,7 +182,7 @@ Both branches respond with `Content-Type: application/json; charset=utf-8`.
 | Endpoint | Response |
 |---|---|
 | `GET /healthz` | `200` — `{"status":"ok"}` |
-| `GET /version` | `200` — `{"version":"1.0.0+<commit sha>"}` |
+| `GET /version` | `200` — `{"version":"1.0.4+<commit sha>"}` |
 
 ## Simulating a misbehaving service
 
@@ -299,7 +299,7 @@ executable. If you already have .NET 10, the `portable` zip does the same job in
 Each asset has a `.sha256` file next to it:
 
 ```bash
-sha256sum -c TargetApiSimulator-1.0.3-linux-x64.zip.sha256
+sha256sum -c TargetApiSimulator-1.0.4-linux-x64.zip.sha256
 ```
 
 > **If antivirus blocks the download:** the executables are unsigned, and Microsoft Defender flags freshly
@@ -345,8 +345,8 @@ The validation contract table above is the reference: if one of those rows chang
 major or minor number. See [CHANGELOG.md](./CHANGELOG.md) for the history and
 [CONTRIBUTING.md](./CONTRIBUTING.md) for the branch and release flow.
 
-> Releases `v5` and `v7` predate this scheme. They were numbered by CI run count and carry no
-> compatibility meaning; versioning starts over at `v1.0.0`.
+> Only the current release is kept on GitHub; older tags and their assets are removed once a new
+> version ships. [CHANGELOG.md](./CHANGELOG.md) remains the full written history.
 
 ## Disclaimer
 

@@ -5,8 +5,10 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-> Releases `v5` and `v7` predate this file. They were numbered by CI run count, carry no
-> compatibility meaning, and are not described here. Versioning starts over at `1.0.0`.
+> Only the current release is kept on GitHub. Tags and release assets for `1.0.0` through `1.0.3`,
+> and for the pre-semver `v5` and `v7`, have been removed; the sections below stay as the written
+> record of what changed in each. Versioning started over at `1.0.0`, and `v5`/`v7` were numbered
+> by CI run count and carried no compatibility meaning.
 
 ## [Unreleased]
 
@@ -163,8 +165,4 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   hit. CLI output is forced to English so the check cannot silently pass on a localised runner.
 
 [Unreleased]: https://github.com/Mysttic/TargetApiSimulator/compare/v1.0.4...HEAD
-[1.0.4]: https://github.com/Mysttic/TargetApiSimulator/compare/v1.0.3...v1.0.4
-[1.0.3]: https://github.com/Mysttic/TargetApiSimulator/compare/v1.0.2...v1.0.3
-[1.0.2]: https://github.com/Mysttic/TargetApiSimulator/compare/v1.0.1...v1.0.2
-[1.0.1]: https://github.com/Mysttic/TargetApiSimulator/compare/v1.0.0...v1.0.1
-[1.0.0]: https://github.com/Mysttic/TargetApiSimulator/releases/tag/v1.0.0
+[1.0.4]: https://github.com/Mysttic/TargetApiSimulator/releases/tag/v1.0.4
