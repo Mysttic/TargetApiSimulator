@@ -86,6 +86,19 @@ source, but it requires an application and approval, and the signature is issued
 foundation's name rather than the project's. Everything this project publishes stays on
 GitHub — no external package registry or account is involved.
 
+### Repository secrets
+
+Only one thing is configurable, and it is optional:
+
+| Secret | Purpose |
+|---|---|
+| `DOCKERHUB_USERNAME` | Docker Hub account name, lowercase — `mysttic`, not an email address. Has to match the `docker.io/<namespace>/targetapisimulator` namespace. |
+| `DOCKERHUB_TOKEN` | A Docker Hub personal access token with **Read & Write** scope, from Account settings → Personal access tokens. Not the account password; with 2FA enabled a password cannot work anyway. |
+
+If either is missing the release still succeeds and the image is published to GHCR only, with a
+note in the run summary. GHCR needs no secret — it authenticates with the built-in
+`GITHUB_TOKEN`.
+
 ### Dry run
 
 `release.yml` can be started manually from the Actions tab. A `workflow_dispatch` run builds and
