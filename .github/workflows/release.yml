@@ -115,8 +115,84 @@ jobs:
       - run: dotnet build --configuration Release --no-restore
       - run: dotnet test --configuration Release --no-build
 
-  publish:
-    name: publish
+  # The headline artifact: one executable per platform that runs on a machine with no .NET
+  # installed. Nothing to unpack beyond the zip, nothing to install.
+  publish-standalone:
+    name: publish (${{ matrix.rid }})
+    needs: [version, verify]
+    if: needs.version.outputs.proceed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: true
+      matrix:
+        rid: [win-x64, linux-x64, osx-arm64]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish ${{ matrix.rid }}
+        shell: bash
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          RID: ${{ matrix.rid }}
+        run: |
+          set -euo pipefail
+          dotnet publish src/TargetApiSimulator/TargetApiSimulator.csproj \
+            --configuration Release \
+            --runtime "$RID" \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:EnableCompressionInSingleFile=true \
+            -p:DebugType=embedded \
+            -p:Version="$VERSION" \
+            -p:InformationalVersion="$VERSION+$GITHUB_SHA" \
+            --output "out/$RID"
+
+          LAUNCHER=TargetApiSimulator
+          [[ "$RID" == win-* ]] && LAUNCHER=TargetApiSimulator.exe
+
+          if [[ ! -f "out/$RID/$LAUNCHER" ]]; then
+            echo "No launcher was produced for $RID; the zip would not be runnable." >&2
+            ls -la "out/$RID" >&2
+            exit 1
+          fi
+
+      - name: Package
+        shell: bash
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          RID: ${{ matrix.rid }}
+        run: |
+          set -euo pipefail
+          NAME="TargetApiSimulator-$VERSION-$RID"
+
+          # IIS hosting leftovers from the Web SDK. Nothing here is hosted in IIS, and they only
+          # make the download look like it needs assembling.
+          rm -f "out/$RID/web.config" \
+                "out/$RID/aspnetcorev2_inprocess.dll" \
+                "out/$RID/TargetApiSimulator.staticwebassets.endpoints.json"
+
+          [[ "$RID" == win-* ]] || chmod +x "out/$RID/TargetApiSimulator"
+
+          mkdir -p dist
+          ( cd "out/$RID" && zip -r "$GITHUB_WORKSPACE/dist/$NAME.zip" . )
+          ( cd dist && sha256sum "$NAME.zip" > "$NAME.zip.sha256" )
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: package-${{ matrix.rid }}
+          path: dist/*
+          retention-days: 14
+          if-no-files-found: error
+
+  # A small framework-dependent build for anyone who already has the .NET runtime and would
+  # rather download 30 KB than 50 MB.
+  publish-portable:
+    name: publish (portable)
     needs: [version, verify]
     if: needs.version.outputs.proceed == 'true'
     runs-on: ubuntu-latest
@@ -128,9 +204,6 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      # One portable package, and deliberately no apphost. Without the native launcher a
-      # per-RID publish produces the same file set anyway, and a freshly built unsigned .exe
-      # with no download reputation gets flagged as Trojan:Script/Wacatac.B!ml.
       - name: Publish
         shell: bash
         env:
@@ -145,32 +218,28 @@ jobs:
             -p:InformationalVersion="$VERSION+$GITHUB_SHA" \
             --output out/portable
 
-          if ls out/portable | grep -qiE '\.exe$'; then
-            echo "An .exe ended up in the package; UseAppHost=false is not taking effect." >&2
-            exit 1
-          fi
-
       - name: Package
         shell: bash
         env:
           VERSION: ${{ needs.version.outputs.version }}
         run: |
           set -euo pipefail
-          NAME="TargetApiSimulator-$VERSION"
+          NAME="TargetApiSimulator-$VERSION-portable"
+          rm -f out/portable/web.config out/portable/TargetApiSimulator.staticwebassets.endpoints.json
           mkdir -p dist
           ( cd out/portable && zip -r "$GITHUB_WORKSPACE/dist/$NAME.zip" . )
           ( cd dist && sha256sum "$NAME.zip" > "$NAME.zip.sha256" )
 
       - uses: actions/upload-artifact@v7
         with:
-          name: package
+          name: package-portable
           path: dist/*
           retention-days: 14
           if-no-files-found: error
 
   release:
     name: release
-    needs: [version, publish]
+    needs: [version, publish-standalone, publish-portable]
     if: needs.version.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -179,7 +248,8 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: package
+          pattern: package-*
+          merge-multiple: true
           path: dist
 
       # Creates the tag at this commit as part of publishing, so VERSION.md stays the only

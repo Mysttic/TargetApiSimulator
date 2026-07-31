@@ -221,40 +221,35 @@ The container runs as an unprivileged user (`uid 1654`) and listens on 8080 only
 
 ## Get a release
 
-Every release on the [Releases page](https://github.com/Mysttic/TargetApiSimulator/releases) ships one portable
-zip plus its `.sha256` checksum. The .NET 10 runtime has to be installed; the same zip then runs on Windows,
-Linux and macOS.
+Download the zip for your platform from the
+[Releases page](https://github.com/Mysttic/TargetApiSimulator/releases), unpack it, and run the executable.
+**Nothing else has to be installed — not even .NET.**
 
-Fetch and start the latest one in a single step — PowerShell:
-
-```powershell
-$tag = (Invoke-RestMethod https://api.github.com/repos/Mysttic/TargetApiSimulator/releases/latest).tag_name
-Invoke-WebRequest "https://github.com/Mysttic/TargetApiSimulator/releases/download/$tag/TargetApiSimulator-$($tag.TrimStart('v')).zip" -OutFile tas.zip
-Expand-Archive tas.zip -DestinationPath tas -Force
-dotnet tas/TargetApiSimulator.dll --urls http://localhost:5000
-```
-
-bash:
+| Asset | Run |
+|---|---|
+| `TargetApiSimulator-<version>-win-x64.zip` | `TargetApiSimulator.exe` |
+| `TargetApiSimulator-<version>-linux-x64.zip` | `./TargetApiSimulator` |
+| `TargetApiSimulator-<version>-osx-arm64.zip` | `./TargetApiSimulator` |
+| `TargetApiSimulator-<version>-portable.zip` | `dotnet TargetApiSimulator.dll` — 30 KB, needs the .NET 10 runtime |
 
 ```bash
-TAG=$(curl -sL https://api.github.com/repos/Mysttic/TargetApiSimulator/releases/latest | grep -oP '"tag_name": "\K[^"]+')
-curl -sL "https://github.com/Mysttic/TargetApiSimulator/releases/download/$TAG/TargetApiSimulator-${TAG#v}.zip" -o tas.zip
-unzip -o tas.zip -d tas
-dotnet tas/TargetApiSimulator.dll --urls http://localhost:5000
+./TargetApiSimulator --urls http://localhost:5000
 ```
 
-Verify the download if you want to:
+It listens on port 5000, prints everything it receives to the console, and stops with Ctrl+C. The three
+platform builds are self-contained, which is why they are around 50 MB: the .NET runtime is inside the
+executable. If you already have .NET 10, the `portable` zip does the same job in 30 KB.
+
+Each asset has a `.sha256` file next to it:
 
 ```bash
-sha256sum -c TargetApiSimulator-1.0.0.zip.sha256
+sha256sum -c TargetApiSimulator-1.0.3-linux-x64.zip.sha256
 ```
 
-> The zip deliberately contains **no `.exe` launcher**. A freshly built, unsigned executable with no download
-> reputation is routinely flagged by antivirus machine-learning heuristics — Microsoft Defender reports it as
-> `Trojan:Script/Wacatac.B!ml`. Shipping only the managed assembly removes the false positive entirely, at the
-> cost of typing `dotnet` in front of the command.
-
-Everything the application receives is printed to the console it runs in.
+> **If antivirus blocks the download:** the executables are unsigned, and Microsoft Defender flags freshly
+> built unsigned binaries with no download reputation as `Trojan:Script/Wacatac.B!ml` — a machine-learning
+> guess, not a signature match. Check the `.sha256`, or use the container image, which is never affected:
+> `docker run --rm -p 5000:8080 ghcr.io/mysttic/targetapisimulator`.
 
 ## Versioning
 
