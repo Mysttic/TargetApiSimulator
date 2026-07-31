@@ -29,6 +29,62 @@ and assert that what you send is well-formed JSON.
 
 A ready-to-run request collection is in [TargetApiSimulator.http](./TargetApiSimulator.http).
 
+## Check that it works
+
+Every release zip contains **`smoke-test.ps1`** and **`smoke-test.sh`**. Start the simulator, run one of
+them, and it exercises the whole documented contract — 25 checks — printing PASS or FAIL for each and
+exiting non-zero if anything is wrong, so it also works as a CI gate.
+
+```bash
+./TargetApiSimulator --urls http://localhost:5000    # in one terminal
+./smoke-test.sh                                      # in another
+```
+
+```powershell
+.\TargetApiSimulator.exe --urls http://localhost:5000
+.\smoke-test.ps1
+```
+
+```
+Service endpoints
+  PASS  GET /healthz returns 200
+  PASS  GET /healthz body
+  ...
+Contract details
+  PASS  Response declares JSON content type
+  PASS  Nesting deeper than 64 -> 400
+  PASS  Body over 1 MB -> 413
+
+All 25 checks passed.
+```
+
+Pass a different address as the first argument (`./smoke-test.sh http://localhost:8080`, or
+`-BaseUrl` in PowerShell). If the simulator is not running the script says so and exits with 2.
+
+### From the browser
+
+`http://localhost:5000/healthz` and `http://localhost:5000/version` open directly — they are plain GETs.
+
+The validation endpoint only accepts POST, so a URL alone will not reach it. **First open
+`http://localhost:5000/healthz`**, then press F12 and paste this into the console. Being on the
+simulator's own origin is what makes it work without CORS:
+
+```js
+const check = async (body) => {
+  const r = await fetch('/api/target', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body
+  });
+  console.log(r.status, await r.text());
+};
+
+await check('{"key":"value"}');   // 200 true
+await check('not json at all');   // 400 {"ErrorMessage": "This is not JSON"}
+```
+
+Whatever you send shows up in the simulator's console at the same moment.
+
 ## See it running
 
 Send a payload, get a verdict:

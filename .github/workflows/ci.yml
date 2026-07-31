@@ -124,20 +124,10 @@ jobs:
             sleep 1
           done
 
-          BODY=$(curl -s -X POST http://localhost:5000/api/target \
-                   -H 'Content-Type: application/json' -d '{"a":1}')
-          test "$BODY" = "true"
-
-          CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:5000/api/target \
-                   -H 'Content-Type: application/json' -d 'nope')
-          test "$CODE" = "400"
-
-          # The 1 MB request body limit. TestServer does not enforce MaxRequestBodySize, so this
-          # is the only place the limit can be verified end to end.
-          python3 -c "open('big.json','w').write('{\"a\":\"' + 'x' * 1100000 + '\"}')"
-          CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:5000/api/target \
-                   -H 'Content-Type: application/json' --data-binary @big.json)
-          test "$CODE" = "413"
+          # The same script that ships inside every release zip. Running it here means the
+          # shipped verification tool cannot rot unnoticed, and it covers the request body
+          # limit, which TestServer does not enforce and unit tests therefore cannot reach.
+          bash scripts/smoke-test.sh http://localhost:5000
 
           docker logs tas
           docker rm -f tas
