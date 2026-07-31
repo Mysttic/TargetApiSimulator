@@ -10,6 +10,25 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-07-31
+
+### Changed
+
+- **Releases ship a runnable executable again.** 1.0.1 and 1.0.2 contained a DLL and a handful of
+  JSON files, which is not something anyone can start. Each platform now gets a self-contained,
+  single-file build — `TargetApiSimulator.exe` on Windows, `TargetApiSimulator` on Linux and
+  macOS — that runs on a machine with no .NET installed at all. Roughly 50 MB, because the
+  runtime is inside it.
+- The small framework-dependent build is still published as
+  `TargetApiSimulator-<version>-portable.zip` for anyone who already has the .NET 10 runtime.
+- Console timestamps and the `Microsoft.AspNetCore` log filter are now defaults in code rather
+  than only in `appsettings.json`, so the standalone executable logs identically when it runs
+  with no files beside it. Configuration still overrides both.
+- Packages no longer carry `web.config`, `aspnetcorev2_inprocess.dll` or the static web assets
+  manifest — IIS hosting leftovers that made the download look like it needed assembling.
+- The release pipeline fails if a platform build produces no launcher, replacing the earlier
+  check that failed if one was present.
+
 ## [1.0.2] - 2026-07-31
 
 ### Fixed
@@ -119,7 +138,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Every pull request runs `dotnet list package --vulnerable --include-transitive` and fails on a
   hit. CLI output is forced to English so the check cannot silently pass on a localised runner.
 
-[Unreleased]: https://github.com/Mysttic/TargetApiSimulator/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/Mysttic/TargetApiSimulator/compare/v1.0.3...HEAD
+[1.0.3]: https://github.com/Mysttic/TargetApiSimulator/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/Mysttic/TargetApiSimulator/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/Mysttic/TargetApiSimulator/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/Mysttic/TargetApiSimulator/releases/tag/v1.0.0

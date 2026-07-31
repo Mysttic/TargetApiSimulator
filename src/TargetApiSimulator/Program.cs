@@ -4,6 +4,15 @@ using TargetApiSimulator;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Set in code, not only in appsettings.json, so the standalone executable behaves the same when
+// it runs on its own. Anything under Logging: in configuration still overrides this.
+builder.Logging.AddSimpleConsole(options =>
+{
+    options.TimestampFormat = "yyyy-MM-dd HH:mm:ss.fff ";
+    options.UseUtcTimestamp = true;
+});
+builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
+
 // The stub handles payloads in the kilobyte range. Kestrel's default is 30 MB, which is three
 // thousand times more than needed and the only real memory multiplier in this process.
 builder.WebHost.ConfigureKestrel(options =>
