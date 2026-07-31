@@ -22,10 +22,10 @@ and assert that what you send is well-formed JSON.
 
 | How you run it | URL to send requests to |
 |---|---|
-| `dotnet run` (default `http` profile) | `http://localhost:5274/api/target` |
-| `dotnet run --launch-profile https` | `https://localhost:7046/api/target` |
 | `docker run --rm -p 5000:8080 mysttic/targetapisimulator` | `http://localhost:5000/api/target` |
 | Release zip: `dotnet TargetApiSimulator.dll --urls http://localhost:5000` | `http://localhost:5000/api/target` |
+| `dotnet run` from a clone (default `http` profile) | `http://localhost:5274/api/target` |
+| `dotnet run --launch-profile https` | `https://localhost:7046/api/target` |
 
 A ready-to-run request collection is in [TargetApiSimulator.http](./TargetApiSimulator.http).
 
@@ -221,27 +221,40 @@ The container runs as an unprivileged user (`uid 1654`) and listens on 8080 only
 
 ## Get a release
 
-Each release on the [Releases page](https://github.com/Mysttic/TargetApiSimulator/releases) ships one zip per
-platform, plus a `.sha256` checksum next to it:
+Every release on the [Releases page](https://github.com/Mysttic/TargetApiSimulator/releases) ships one portable
+zip plus its `.sha256` checksum. The .NET 10 runtime has to be installed; the same zip then runs on Windows,
+Linux and macOS.
 
-| Asset | Run it with |
-|---|---|
-| `TargetApiSimulator-<version>-win-x64.zip` | `TargetApiSimulator.exe` |
-| `TargetApiSimulator-<version>-linux-x64.zip` | `./TargetApiSimulator` |
-| `TargetApiSimulator-<version>-osx-arm64.zip` | `./TargetApiSimulator` |
+Fetch and start the latest one in a single step — PowerShell:
 
-All builds are framework-dependent, so the .NET 10 runtime has to be installed. `dotnet TargetApiSimulator.dll`
-works from any of them regardless of platform.
-
-```bash
-./TargetApiSimulator --urls http://localhost:5000
+```powershell
+$tag = (Invoke-RestMethod https://api.github.com/repos/Mysttic/TargetApiSimulator/releases/latest).tag_name
+Invoke-WebRequest "https://github.com/Mysttic/TargetApiSimulator/releases/download/$tag/TargetApiSimulator-$($tag.TrimStart('v')).zip" -OutFile tas.zip
+Expand-Archive tas.zip -DestinationPath tas -Force
+dotnet tas/TargetApiSimulator.dll --urls http://localhost:5000
 ```
 
-Everything the application receives is printed to the console it runs in. Check the download first:
+bash:
 
 ```bash
-sha256sum -c TargetApiSimulator-1.0.0-linux-x64.zip.sha256
+TAG=$(curl -sL https://api.github.com/repos/Mysttic/TargetApiSimulator/releases/latest | grep -oP '"tag_name": "\K[^"]+')
+curl -sL "https://github.com/Mysttic/TargetApiSimulator/releases/download/$TAG/TargetApiSimulator-${TAG#v}.zip" -o tas.zip
+unzip -o tas.zip -d tas
+dotnet tas/TargetApiSimulator.dll --urls http://localhost:5000
 ```
+
+Verify the download if you want to:
+
+```bash
+sha256sum -c TargetApiSimulator-1.0.0.zip.sha256
+```
+
+> The zip deliberately contains **no `.exe` launcher**. A freshly built, unsigned executable with no download
+> reputation is routinely flagged by antivirus machine-learning heuristics — Microsoft Defender reports it as
+> `Trojan:Script/Wacatac.B!ml`. Shipping only the managed assembly removes the false positive entirely, at the
+> cost of typing `dotnet` in front of the command.
+
+Everything the application receives is printed to the console it runs in.
 
 ## Versioning
 

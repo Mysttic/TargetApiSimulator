@@ -10,8 +10,26 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-First release under tag-driven versioning. Promote this section to `## [1.0.0] - YYYY-MM-DD`
-when the `develop -> master` pull request is merged and the tag is pushed.
+## [1.0.1] - 2026-07-31
+
+### Changed
+
+- Release artifacts ship as **one portable zip** with a `.sha256` checksum instead of three
+  per-platform ones, built with `-p:UseAppHost=false` so no executable is included. Microsoft
+  Defender flagged the 1.0.0 Windows zip as `Trojan:Script/Wacatac.B!ml` and quarantined it
+  mid-download — a machine-learning heuristic that fires on unsigned, freshly built executables
+  with no download reputation. Without the launcher a per-RID publish produces an identical file
+  set anyway, so three zips collapse into one. Run it with
+  `dotnet TargetApiSimulator.dll --urls http://localhost:5000` on any platform.
+- The release pipeline fails if an `.exe` ever reappears in the package, rather than publishing
+  an artifact that will be flagged again.
+
+### Added
+
+- README: one-line snippets for PowerShell and bash that fetch and start the latest release
+  through the GitHub API, so nothing has to be downloaded through a browser.
+
+## [1.0.0] - 2026-07-31
 
 ### Added
 
@@ -55,7 +73,7 @@ when the `develop -> master` pull request is merged and the tag is pushed.
 - Project moved to `src/TargetApiSimulator/`; tests live in `tests/TargetApiSimulator.Tests/`.
 - Dockerfile rewritten: one `publish` stage instead of a duplicated build, runs as the
   unprivileged `uid 1654`, OCI labels, and the version passed in as a build argument.
-- Release artifacts are now per-platform (`win-x64`, `linux-x64`, `osx-arm64`) with `.sha256`
+- Release artifacts are per-platform zips (`win-x64`, `linux-x64`, `osx-arm64`) with `.sha256`
   checksums, named after the version.
 - `appsettings.Development.json` now lowers log levels instead of duplicating
   `appsettings.json` verbatim.
@@ -91,3 +109,7 @@ when the `develop -> master` pull request is merged and the tag is pushed.
 - Container no longer runs as root.
 - Every pull request runs `dotnet list package --vulnerable --include-transitive` and fails on a
   hit. CLI output is forced to English so the check cannot silently pass on a localised runner.
+
+[Unreleased]: https://github.com/Mysttic/TargetApiSimulator/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/Mysttic/TargetApiSimulator/compare/v1.0.0...v1.0.1
+[1.0.0]: https://github.com/Mysttic/TargetApiSimulator/releases/tag/v1.0.0
