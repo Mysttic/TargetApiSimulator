@@ -10,6 +10,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-07-31
+
+### Fixed
+
+- A missing `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` no longer fails the release. The 1.0.1 run
+  published the tag, the zip and the GHCR image correctly, then went red on
+  `docker login docker.io -u ""`. Docker Hub is now skipped with a note in the run summary when
+  it is not configured, and the image still goes to GHCR.
+
 ## [1.0.1] - 2026-07-31
 
 ### Changed
@@ -110,6 +119,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Every pull request runs `dotnet list package --vulnerable --include-transitive` and fails on a
   hit. CLI output is forced to English so the check cannot silently pass on a localised runner.
 
-[Unreleased]: https://github.com/Mysttic/TargetApiSimulator/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/Mysttic/TargetApiSimulator/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/Mysttic/TargetApiSimulator/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/Mysttic/TargetApiSimulator/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/Mysttic/TargetApiSimulator/releases/tag/v1.0.0
