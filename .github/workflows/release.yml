@@ -190,7 +190,7 @@ jobs:
         with:
           name: package-${{ matrix.rid }}
           path: dist/*
-          retention-days: 14
+          retention-days: 3
           if-no-files-found: error
 
   # A small framework-dependent build for anyone who already has the .NET runtime and would
@@ -240,7 +240,7 @@ jobs:
         with:
           name: package-portable
           path: dist/*
-          retention-days: 14
+          retention-days: 3
           if-no-files-found: error
 
   release:
