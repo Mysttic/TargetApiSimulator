@@ -1,13 +1,31 @@
 name: CI
 
+# Scope: this workflow is the `develop` -> `master` gate and nothing else.
+#
+# `pull_request.branches` filters the BASE branch only - GitHub has no source-branch filter in
+# `on:` - so every job additionally carries an `if:` that pins the source branch to `develop`.
+#
+# Two consequences, both deliberate and agreed with the repository owner:
+#
+# 1. A pull request into `master` that does NOT come from `develop` skips every job, and GitHub
+#    records a run whose jobs were all skipped as SUCCESSFUL - a skipped job also satisfies a
+#    required status check. Such a pull request is therefore reported green without a single test
+#    having run. No unconditional gate job is added to turn that into a red result.
+#    The one such path this repository actually uses is the `hotfix/* -> master` emergency
+#    release described in CONTRIBUTING.md. A hotfix pull request goes green untested, and the
+#    release it triggers publishes zips and images that no test in this repository has seen.
+#    Run the full suite locally - or start this workflow by hand on the hotfix branch - before
+#    merging one. That is a deliberate trade for Actions minutes, not an oversight.
+# 2. Pushes to `develop`, pushes to feature branches and pull requests INTO `develop` - including
+#    Dependabot's - no longer start CI at all. Run this workflow manually from the Actions tab
+#    (`workflow_dispatch`) when a branch needs checking before it reaches `develop`.
 on:
   pull_request:
-    branches: [develop, master]
-  push:
-    branches: [develop]
+    branches: [master]
+  workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -23,6 +41,9 @@ env:
 jobs:
   build-test:
     name: build-test
+    # `github.head_ref` is empty for anything that is not a `pull_request`, so the manual run has
+    # to be allowed explicitly or `workflow_dispatch` would always skip.
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'develop'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -70,17 +91,26 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      # `setup-dotnet`'s own `cache: true` needs a packages.lock.json, which this repository does
+      # not use; the global package folder is cached directly instead, keyed on the project files
+      # so a dependency bump invalidates it.
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
+
       - name: Restore
         run: dotnet restore
 
       - name: Build
         run: dotnet build --configuration Release --no-restore
 
+      # No `--logger trx`: the .trx file used to be uploaded as an artifact, and with that upload
+      # gone nothing would ever read it. A failing test prints to the run log either way.
       - name: Test
-        run: >
-          dotnet test --configuration Release --no-build
-          --logger "trx;LogFileName=test-results.trx"
-          --results-directory ./TestResults
+        run: dotnet test --configuration Release --no-build
 
       - name: Verify formatting
         run: dotnet format TargetApiSimulator.sln --verify-no-changes --no-restore --severity warn
@@ -94,23 +124,39 @@ jobs:
             exit 1
           fi
 
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: test-results
-          path: TestResults/**
-          retention-days: 7
-
   docker:
     name: docker
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'develop'
+    # Building the image repeats `dotnet restore` + `publish` inside the Dockerfile, so there is
+    # nothing to learn from it once the unit tests are already red.
+    needs: build-test
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
 
+      - uses: docker/setup-buildx-action@v3
+
+      # `load: true` puts the image into the local daemon, which is what the smoke test below
+      # runs.
+      #
+      # About the layer cache: GitHub scopes a cache to the ref that wrote it, and a run may read
+      # only its own ref plus the base and default branches. This workflow runs on `pull_request`
+      # and `workflow_dispatch` only, and nothing on `master` writes a buildx cache, so a hit
+      # comes from an earlier run on THIS pull request - a re-run, or a later push to the same
+      # branch - and never from another pull request. `mode=max` keeps the SDK stage's restore
+      # and publish layers, which is the whole saving; `mode=min` would export the final stage
+      # only and leave nothing worth restoring. Kept as is: within a pull request it earns its
+      # keep, and GitHub evicts it on its own (LRU at the 10 GB repository limit, plus a 7-day
+      # unused-entry policy).
       - name: Build image
-        run: docker build -t tas:ci .
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: tas:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Smoke test
         run: |
@@ -132,9 +178,15 @@ jobs:
           docker logs tas
           docker rm -f tas
 
+  # Kept, not removed: this is the only required status check named by the rulesets in
+  # .github/rulesets, so dropping it would leave both protection rules pointing at a check that
+  # can never report.
   ci-required:
     name: ci-required
-    if: always()
+    # `always()` is what makes this report a failure when build-test fails. The branch guard has
+    # to be repeated here, or this job would be the one thing still running - and failing on the
+    # `skipped` results of the other two - on a pull request that is not from `develop`.
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || github.head_ref == 'develop') }}
     needs: [build-test, docker]
     runs-on: ubuntu-latest
     timeout-minutes: 5

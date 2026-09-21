@@ -10,6 +10,32 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- CI runs on a pull request from `develop` into `master`, or on a manual `workflow_dispatch`,
+  and on nothing else. Pushes to `develop`, pushes to feature branches and pull requests *into*
+  `develop` — Dependabot's included — no longer start a run. A `hotfix/* → master` pull request
+  skips every job too and is reported green untested, so a hotfix has to be tested locally.
+  NuGet packages and Docker layers are cached; GitHub scopes a cache to the ref that wrote it,
+  so those hits come from re-runs and further pushes within the same pull request rather than
+  from the one before it. The container build now waits for the unit tests instead of running
+  beside them. A deliberate trade of coverage for GitHub Actions minutes: run `dotnet test`
+  locally before merging into `develop`.
+- A release no longer re-runs the test suite. The `develop` → `master` pull request already
+  tested the same tree; tick **run_tests** on a manual run to have it back.
+- `protect-develop` no longer requires the `ci-required` status check. Nothing reports it on a
+  pull request into `develop` now, and with an empty bypass list the rule would have made every
+  such pull request unmergeable by anyone. The ruleset under `.github/rulesets` has to be pushed
+  to the repository settings for the change to take effect.
+- A successful release deletes its own build artifacts once the files are attached to the GitHub
+  Release, instead of leaving a second copy of every zip in Actions storage. A `workflow_dispatch`
+  dry run keeps its artifacts — there they are the only output.
+
+### Removed
+
+- The daily `actions-storage.yml` sweep, and the test-result artifact CI used to upload. GitHub
+  expires both artifacts and logs on its own, so a scheduled run a day was buying nothing.
+
 ## [1.0.4] - 2026-07-31
 
 ### Added
