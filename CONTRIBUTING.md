@@ -19,7 +19,8 @@ feature/xyz ──squash──> develop ──merge PR──> master ──tag v
 - **Hotfixes branch off `master`, not `develop`** — develop holds unreleased features you do not
   want to ship in an emergency patch. After tagging, merge master back into develop
   (`git checkout develop && git merge master`). Skipping the back-merge is the classic way to
-  make a fixed bug reappear two releases later.
+  make a fixed bug reappear two releases later. **A hotfix pull request runs no CI** and is
+  reported green regardless — see [CI](#ci) — so test it locally before merging.
 - **No `release/*` branches.** They exist to stabilise a release while new features keep landing
   on develop. With one maintainer and one endpoint, the `develop → master` PR is opened and
   merged within the hour. Revisit this the first time you need to ship 1.3.0 without a feature
@@ -48,9 +49,14 @@ No tag is ever created by hand. [VERSION.md](./VERSION.md) drives everything.
    run summary whether merging will publish, and under which number.
 3. Merge with a **merge commit** (not squash — `master` keeps real merge commits).
 4. `release.yml` runs on that push to `master`. It reads `VERSION.md`, confirms `vX.Y.Z` does not
-   already exist, builds and tests, produces one portable zip with a `.sha256` file, **creates
-   the tag**, publishes the GitHub Release, and pushes images tagged `X.Y.Z`, `X.Y` and `latest`
-   to GHCR and Docker Hub.
+   already exist, builds, produces one zip per platform plus a portable one — each with its own
+   `.sha256` file — **creates the tag**, publishes the GitHub Release, and pushes images tagged
+   `X.Y.Z`, `X.Y` and `latest` to GHCR and Docker Hub.
+
+   It does **not** run the tests. The `develop → master` pull request in step 2 already tested
+   this exact tree; on a manual run, tick **run_tests** to have them back. If this release did
+   not come through that pull request — a hotfix, say — run `dotnet test` locally first, because
+   nothing else in the pipeline will.
 5. Back-merge so develop does not fall behind:
 
    ```bash
@@ -101,9 +107,10 @@ note in the run summary. GHCR needs no secret — it authenticates with the buil
 
 ### Dry run
 
-`release.yml` can be started manually from the Actions tab. A `workflow_dispatch` run builds and
-tests and produces the artifacts, but never tags, releases or pushes an image — useful for
-checking the pipeline without publishing.
+`release.yml` can be started manually from the Actions tab. A `workflow_dispatch` run produces
+the artifacts but never tags, releases or pushes an image — useful for checking the pipeline
+without publishing. Tick **run_tests** to build and test first; it is off by default, because a
+release normally follows a `develop` → `master` pull request that already tested the same tree.
 
 ### Setting the version by hand
 
@@ -125,8 +132,16 @@ recreated:
 gh api --method POST /repos/Mysttic/TargetApiSimulator/rulesets --input .github/rulesets/protect-develop.json
 ```
 
-The only required status check is `ci-required`; it must have run at least once before the rule
-can reference it.
+Changing one that already exists needs its id and `PUT` — `POST` would create a second ruleset
+next to it:
+
+```bash
+gh api /repos/Mysttic/TargetApiSimulator/rulesets --jq '.[] | "\(.id)\t\(.name)"'
+gh api --method PUT /repos/Mysttic/TargetApiSimulator/rulesets/<id> --input .github/rulesets/protect-develop.json
+```
+
+`ci-required` is a required status check on `master` only; it must have run at least once before
+the rule can reference it. `protect-develop` deliberately requires no check — see [CI](#ci).
 
 ## Local development
 
@@ -164,8 +179,34 @@ CI instead:
 
 ## CI
 
-Every pull request into `develop` or `master` runs `.github/workflows/ci.yml`: build, test,
-formatting check, vulnerable-package scan, plus a container build and smoke test.
+`.github/workflows/ci.yml` runs on **pull requests from `develop` into `master`** — and on a
+manual `workflow_dispatch` — and nothing else: build, test, formatting check, vulnerable-package
+scan, plus a container build and smoke test. The base branch comes from the `on:` filter, the
+source branch from a `github.head_ref == 'develop'` condition on every job, because GitHub cannot
+filter a source branch in `on:`.
+
+Pushes to `develop`, pushes to feature branches and pull requests *into* `develop` — Dependabot's
+included — therefore run no CI at all. Run `dotnet test` locally before merging into `develop`,
+or start the workflow by hand from the Actions tab. This is a deliberate trade for GitHub Actions
+minutes, not an oversight.
 
 The only required status check is **`ci-required`**. It aggregates the other jobs, so the
-protection rules do not need updating when a job is added or a matrix changes.
+protection rules do not need updating when a job is added or a matrix changes. Two things follow
+from the trigger change:
+
+- **`protect-develop` no longer requires `ci-required`.** Nothing reports that check on a pull
+  request into `develop` any more, and leaving the rule in place would have parked every such
+  pull request — Dependabot's included — on *Expected — waiting for status to be reported*, with
+  an empty `bypass_actors` list and therefore no way for anyone, the owner included, to merge it.
+  The rule is gone from
+  [`.github/rulesets/protect-develop.json`](./.github/rulesets/protect-develop.json); it still
+  has to be pushed to the live repository with the `PUT` in
+  [Repository settings as code](#repository-settings-as-code), or `develop` stays frozen.
+  Everything else protecting `develop` stays: no deletion, no force push, linear history,
+  squash-only pull requests.
+- **A pull request into `master` from a branch other than `develop` skips every job** — which is
+  exactly what a `hotfix/*` pull request is. GitHub counts a skipped job as a satisfied required
+  check, so such a pull request goes green with nothing tested, and the release that follows the
+  merge publishes zips and an image no test has seen. Run `dotnet test` locally, or start
+  `ci.yml` by hand on the hotfix branch, before merging one. This is a deliberate trade for
+  Actions minutes, not an oversight.

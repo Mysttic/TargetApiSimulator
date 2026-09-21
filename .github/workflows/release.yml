@@ -10,6 +10,12 @@ on:
   push:
     branches: [master]
   workflow_dispatch:
+    inputs:
+      run_tests:
+        description: "Run build + unit tests before publishing (off by default: the develop -> master pull request already ran them on this tree)"
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: release-${{ github.ref }}
@@ -98,10 +104,14 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
+  # Off by default. CI already built and tested this exact tree on the develop -> master pull
+  # request, and the master ruleset requires that check to be up to date with master before the
+  # merge, so a third run of the same tests buys very little. It stays here, one checkbox away,
+  # for a release cut by hand or from a commit that never went through a pull request.
   verify:
     name: verify
     needs: version
-    if: needs.version.outputs.proceed == 'true'
+    if: ${{ needs.version.outputs.proceed == 'true' && inputs.run_tests }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -110,6 +120,14 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
+
+      # Shares its key with ci.yml's build-test: same solution, same restore.
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: ${{ runner.os }}-nuget-
 
       - run: dotnet restore
       - run: dotnet build --configuration Release --no-restore
@@ -120,7 +138,9 @@ jobs:
   publish-standalone:
     name: publish (${{ matrix.rid }})
     needs: [version, verify]
-    if: needs.version.outputs.proceed == 'true'
+    # `!cancelled()` is required: `verify` is skipped on a normal release, and a skipped `needs`
+    # would otherwise skip this job too. A `verify` that ran and FAILED still blocks publishing.
+    if: ${{ !cancelled() && needs.version.outputs.proceed == 'true' && needs.verify.result != 'failure' }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
@@ -133,6 +153,16 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
+
+      # Keyed per RID: a self-contained publish pulls a different runtime package set for each.
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ matrix.rid }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-${{ matrix.rid }}-
+            ${{ runner.os }}-nuget-
 
       - name: Publish ${{ matrix.rid }}
         shell: bash
@@ -186,6 +216,10 @@ jobs:
           ( cd "out/$RID" && zip -r "$GITHUB_WORKSPACE/dist/$NAME.zip" . )
           ( cd dist && sha256sum "$NAME.zip" > "$NAME.zip.sha256" )
 
+      # Load-bearing, not a report: this is how the zip reaches the `release` job, which
+      # downloads every `package-*` artifact and attaches it to the GitHub Release. On a manual
+      # `workflow_dispatch` run no release is created, so the artifact is also the only way to
+      # take delivery of the build. Kept short at three days either way.
       - uses: actions/upload-artifact@v7
         with:
           name: package-${{ matrix.rid }}
@@ -198,7 +232,8 @@ jobs:
   publish-portable:
     name: publish (portable)
     needs: [version, verify]
-    if: needs.version.outputs.proceed == 'true'
+    # See publish-standalone: `!cancelled()` lets this run past a skipped `verify`.
+    if: ${{ !cancelled() && needs.version.outputs.proceed == 'true' && needs.verify.result != 'failure' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -207,6 +242,15 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-portable-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-portable-
+            ${{ runner.os }}-nuget-
 
       - name: Publish
         shell: bash
@@ -236,6 +280,8 @@ jobs:
           ( cd out/portable && zip -r "$GITHUB_WORKSPACE/dist/$NAME.zip" . )
           ( cd dist && sha256sum "$NAME.zip" > "$NAME.zip.sha256" )
 
+      # See publish-standalone: the `release` job's only input, and the only output of a manual
+      # dry run.
       - uses: actions/upload-artifact@v7
         with:
           name: package-portable
@@ -251,6 +297,9 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+      # For the artifact cleanup at the end of this job. A job-level `permissions:` block replaces
+      # the workflow-level one outright, so it has to be named here.
+      actions: write
     steps:
       - uses: actions/download-artifact@v8
         with:
@@ -275,10 +324,35 @@ jobs:
             dist/*.zip
             dist/*.sha256
 
+      # The artifacts were only the transport between the publish jobs and this one. The release
+      # assets now hold the same bytes, so leaving them behind keeps a second copy of every zip -
+      # 150 MB or so - in Actions storage with no reader until it expires. Deleting them here and
+      # not earlier is what keeps a `workflow_dispatch` dry run working: this job is skipped when
+      # `should_release` is false, which is exactly the case where the artifact IS the output.
+      #
+      # `continue-on-error` on purpose: the release is already published by this point, and a
+      # failed cleanup must not turn a successful release red.
+      - name: Delete the transport artifacts
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -uo pipefail
+          gh api --paginate "repos/$REPO/actions/runs/$RUN_ID/artifacts" \
+            --jq '.artifacts[] | select(.name | startswith("package-")) | .id' \
+          | while read -r id; do
+              echo "Deleting artifact $id"
+              gh api --method DELETE "repos/$REPO/actions/artifacts/$id" || true
+            done
+
   docker:
     name: docker
     needs: [version, verify]
-    if: needs.version.outputs.should_release == 'true'
+    # `!cancelled()` for the same reason as publish-standalone. Without it a skipped `verify`
+    # would skip this job, and a release would ship zips but no image.
+    if: ${{ !cancelled() && needs.version.outputs.should_release == 'true' && needs.verify.result != 'failure' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
