@@ -131,6 +131,12 @@ jobs:
     # nothing to learn from it once the unit tests are already red.
     needs: build-test
     runs-on: ubuntu-latest
+    # docker/build-push-action@v6 uploads a build record (*.dockerbuild) as a run
+    # artifact by default, kept for the repository's default retention (90 days
+    # unless changed) and never downloaded by anyone. Disabled so it does not take
+    # Actions storage; the build summary on the run page stays.
+    env:
+      DOCKER_BUILD_RECORD_UPLOAD: 'false'
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7

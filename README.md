@@ -319,7 +319,10 @@ sha256sum -c TargetApiSimulator-1.0.3-linux-x64.zip.sha256
 
 Bump that number, merge it into `master`, and [release.yml](.github/workflows/release.yml) creates
 the `v1.2.3` tag and publishes the release. Merging into `master` **without** changing it does
-nothing — the tag already exists, so the pipeline stops before publishing.
+nothing — the release workflow only starts on a push that changes `VERSION.md`. The same goes for
+a retry after a failed release: a commit with the fix has to change `VERSION.md` too (any edit
+will do), or re-run the original run instead — see
+[Retrying a failed release](./CONTRIBUTING.md#retrying-a-failed-release).
 
 The version has to sit alone on its own line; a number mentioned in prose is ignored, so the
 comments in that file cannot trigger a release by accident. A suffix such as `1.1.0-rc.1` is

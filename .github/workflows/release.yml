@@ -1,7 +1,8 @@
 name: Release
 
 # Driven by VERSION.md, not by a hand-pushed tag. A merge into master that changes the version
-# publishes it; a merge that does not leaves the existing tag alone and stops early.
+# publishes it; a merge that does not touch VERSION.md does not start this workflow at all (see
+# the `paths` filter below).
 #
 # The tag is created inside the release job rather than in a separate workflow on purpose: a tag
 # pushed with GITHUB_TOKEN does not trigger further workflow runs, so splitting this in two would
@@ -9,6 +10,23 @@ name: Release
 on:
   push:
     branches: [master]
+    # VERSION.md is the only file the `version` job reads the version from, so a push that does
+    # not touch it can never publish anything. Without this filter every merge into master still
+    # started a runner - billed as at least a minute - only for the `version` job to find the tag
+    # already there and skip the rest. Now such a push starts nothing at all.
+    #
+    # Deliberately VERSION.md and nothing else, not even this workflow file: a change to the
+    # pipeline alone is tried out with a manual `workflow_dispatch` run (a dry run: it builds the
+    # zips as artifacts, never tags or releases).
+    #
+    # Retrying a release that failed after the version was bumped: open the original push run and
+    # use "Re-run failed jobs" (within a day, while its artifacts still exist) or "Re-run all
+    # jobs". A re-run keeps the `push` event and the commit, so as long as the tag was not created
+    # yet, the `version` job still decides to publish. `workflow_dispatch` cannot do that - it
+    # never releases. If the fix needs a new commit, that commit has to touch VERSION.md too (a
+    # bump, or any edit to the file), or its push is ignored.
+    paths:
+      - VERSION.md
   workflow_dispatch:
     inputs:
       run_tests:
@@ -219,12 +237,14 @@ jobs:
       # Load-bearing, not a report: this is how the zip reaches the `release` job, which
       # downloads every `package-*` artifact and attaches it to the GitHub Release. On a manual
       # `workflow_dispatch` run no release is created, so the artifact is also the only way to
-      # take delivery of the build. Kept short at three days either way.
+      # take delivery of the build. One day either way: on a release the `release` job deletes
+      # it as soon as the release holds the same bytes (it only lingers after a failure, for
+      # "Re-run failed jobs"), and the zips of a manual dry run have to be downloaded within a day.
       - uses: actions/upload-artifact@v7
         with:
           name: package-${{ matrix.rid }}
           path: dist/*
-          retention-days: 3
+          retention-days: 1
           if-no-files-found: error
 
   # A small framework-dependent build for anyone who already has the .NET runtime and would
@@ -281,18 +301,23 @@ jobs:
           ( cd dist && sha256sum "$NAME.zip" > "$NAME.zip.sha256" )
 
       # See publish-standalone: the `release` job's only input, and the only output of a manual
-      # dry run.
+      # dry run - download it within a day, it expires after one.
       - uses: actions/upload-artifact@v7
         with:
           name: package-portable
           path: dist/*
-          retention-days: 3
+          retention-days: 1
           if-no-files-found: error
 
   release:
     name: release
     needs: [version, publish-standalone, publish-portable]
-    if: needs.version.outputs.should_release == 'true'
+    # A status function is required here, as on the publish jobs: without one the implicit
+    # `success()` also counts `verify` further up the chain, which is skipped on every normal
+    # release, and GitHub then skips this job even though both publish jobs succeeded - no tag,
+    # no release, and the run still ends green. The publish results are checked by hand instead,
+    # so a failed or skipped publish still blocks the release.
+    if: ${{ !cancelled() && needs.version.outputs.should_release == 'true' && needs.publish-standalone.result == 'success' && needs.publish-portable.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
