@@ -63,11 +63,34 @@ No tag is ever created by hand. [VERSION.md](./VERSION.md) drives everything.
    git checkout develop && git merge master && git push
    ```
 
-Merging into `master` without touching `VERSION.md` is safe and does nothing: the tag already
-exists, so the pipeline stops at the first job. That check is what makes the release idempotent —
-re-running the workflow on the same commit cannot produce a second release.
+Merging into `master` without touching `VERSION.md` is safe and does nothing: `release.yml` only
+starts on a push that changes `VERSION.md`, so no run is created at all. A push that changes the
+file but keeps a version whose tag already exists stops at the first job. That tag check is what
+makes the release idempotent — re-running the workflow on the same commit cannot produce a second
+release.
 
 Hotfixes branch off `master`, bump `VERSION.md` the same way, and are back-merged into `develop`.
+
+The flip side: the CI note from step 2 ("will publish **vX.Y.Z**") only checks whether the tag
+exists. If `master` already holds that number in `VERSION.md` — because an earlier release of it
+failed — a merge that leaves the file unchanged starts nothing, and the version is never published.
+
+#### Retrying a failed release
+
+The tag is created near the end, by the `release` job, so after a failure it usually does not
+exist yet. Pick one:
+
+1. **Re-run failed jobs** on the original push run, within a day. The zips are kept as artifacts
+   for one day, so the `release` job can pick them up again without a rebuild.
+2. **Re-run all jobs** on the original push run, later (GitHub allows re-runs for 30 days), as long
+   as the tag `vX.Y.Z` was not created. A re-run keeps the `push` event and the commit, so the
+   first job still decides to publish.
+3. **A new commit that changes `VERSION.md`**, when the fix itself needs a commit (to
+   `release.yml`, say). Bump the version, or keep the number and edit anything else in the file —
+   the HTML comment will do. Without that, the push of the fix is ignored.
+
+A manual `workflow_dispatch` run cannot retry a release: it is a [dry run](#dry-run) and never
+tags or publishes.
 
 ### Why the tag is created inside the release job
 
